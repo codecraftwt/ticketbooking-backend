@@ -1,21 +1,31 @@
+import fs from 'fs';
+import path from 'path';
 import Stripe from 'stripe';
 import { Booking } from '../models/Booking.js';
 import { ShowSeat } from '../models/ShowSeat.js';
 import { Show } from '../models/Show.js';
 import { Payment } from '../models/Payment.js';
 import { Refund } from '../models/Refund.js';
+import { SeatHold } from '../models/SeatHold.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { broadcastSeatUpdate } from '../sockets/socketManager.js';
 
-const stripeSecret = process.env.STRIPE_SECRET_KEY;
 let stripeInstance = null;
-if (stripeSecret && stripeSecret.startsWith('sk_')) {
-  try {
-    stripeInstance = new Stripe(stripeSecret);
-  } catch (err) {
-    console.warn('⚠️ Stripe initialization failed, test sandbox mode will be active.');
+const getStripeInstance = () => {
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret || !secret.startsWith('sk_') || secret.includes('MockTicketStripeKey')) {
+    return null;
   }
-}
+  if (!stripeInstance) {
+    try {
+      stripeInstance = new Stripe(secret);
+    } catch (err) {
+      console.warn('⚠️ Stripe initialization failed:', err.message);
+      return null;
+    }
+  }
+  return stripeInstance;
+};
 
 // GET /api/admin/operations/bookings
 export const getAdminBookings = async (req, res) => {
@@ -86,9 +96,10 @@ export const processRefund = async (req, res) => {
     let stripeRefundId = `re_test_${Date.now()}`;
 
     // Attempt Stripe live/test refund if connected
-    if (stripeInstance && !stripeSecret.includes('MockTicketStripeKey')) {
+    const stripe = getStripeInstance();
+    if (stripe) {
       try {
-        const stripeRefund = await stripeInstance.refunds.create({
+        const stripeRefund = await stripe.refunds.create({
           payment_intent: booking.stripePaymentIntentId,
           amount: Math.round(booking.totalAmount * 100),
           reason: reason === 'requested_by_customer' ? 'requested_by_customer' : 'duplicate',
@@ -257,7 +268,13 @@ export const getRevenueAnalytics = async (req, res) => {
 // GET /api/admin/operations/export-csv - Generate CSV Report
 export const exportBookingsCSV = async (req, res) => {
   try {
-    const bookings = await Booking.find()
+    const { eventId } = req.query;
+    const filter = {};
+    if (eventId) {
+      filter.eventId = eventId;
+    }
+
+    const bookings = await Booking.find(filter)
       .populate('eventId', 'title category')
       .populate('venueId', 'name city')
       .populate('hallId', 'name')
@@ -307,3 +324,117 @@ export const exportBookingsCSV = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// DELETE /api/admin/operations/bookings/purge - Clear all test bookings & sales metrics
+export const purgeAllBookings = async (req, res) => {
+  try {
+    const [bRes, pRes, rRes, hRes] = await Promise.all([
+      Booking.deleteMany({}),
+      Payment.deleteMany({}),
+      Refund.deleteMany({}),
+      SeatHold.deleteMany({}),
+    ]);
+
+    await ShowSeat.updateMany(
+      { status: { $in: ['BOOKED', 'HELD'] } },
+      { $set: { status: 'AVAILABLE' } }
+    );
+
+    await Show.updateMany(
+      {},
+      { $set: { bookedSeatsCount: 0 } }
+    );
+
+    res.json({
+      success: true,
+      message: 'All booking records and sales metrics have been cleared.',
+      data: {
+        bookingsDeleted: bRes.deletedCount,
+        paymentsDeleted: pRes.deletedCount,
+        refundsDeleted: rRes.deletedCount,
+        holdsDeleted: hRes.deletedCount,
+      },
+    });
+  } catch (error) {
+    console.error('Error purging bookings:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GET /api/admin/operations/settings/gateway - Read Stripe keys status
+export const getGatewaySettings = (req, res) => {
+  const secret = process.env.STRIPE_SECRET_KEY || '';
+  const pub = process.env.STRIPE_PUBLISHABLE_KEY || '';
+  const webhook = process.env.STRIPE_WEBHOOK_SECRET || '';
+
+  res.json({
+    success: true,
+    data: {
+      stripeSecretKey: secret,
+      stripePublishableKey: pub,
+      stripeWebhookSecret: webhook,
+      isConfigured: secret.startsWith('sk_') && !secret.includes('MockTicketStripeKey'),
+    },
+  });
+};
+
+// PUT /api/admin/operations/settings/gateway - Update Stripe keys
+export const updateGatewaySettings = (req, res) => {
+  const { stripeSecretKey, stripePublishableKey, stripeWebhookSecret } = req.body;
+
+  if (stripeSecretKey !== undefined) process.env.STRIPE_SECRET_KEY = stripeSecretKey.trim();
+  if (stripePublishableKey !== undefined) process.env.STRIPE_PUBLISHABLE_KEY = stripePublishableKey.trim();
+  if (stripeWebhookSecret !== undefined) process.env.STRIPE_WEBHOOK_SECRET = stripeWebhookSecret.trim();
+
+  // Try to re-instantiate Stripe
+  if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY.startsWith('sk_')) {
+    try {
+      stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY);
+    } catch (e) {
+      console.warn('⚠️ Stripe re-initialization warning:', e.message);
+    }
+  }
+
+  // Update .env file
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      let envContent = fs.readFileSync(envPath, 'utf8');
+      if (stripeSecretKey !== undefined) {
+        if (/^STRIPE_SECRET_KEY=.*$/m.test(envContent)) {
+          envContent = envContent.replace(/^STRIPE_SECRET_KEY=.*$/m, `STRIPE_SECRET_KEY=${stripeSecretKey.trim()}`);
+        } else {
+          envContent += `\nSTRIPE_SECRET_KEY=${stripeSecretKey.trim()}`;
+        }
+      }
+      if (stripePublishableKey !== undefined) {
+        if (/^STRIPE_PUBLISHABLE_KEY=.*$/m.test(envContent)) {
+          envContent = envContent.replace(/^STRIPE_PUBLISHABLE_KEY=.*$/m, `STRIPE_PUBLISHABLE_KEY=${stripePublishableKey.trim()}`);
+        } else {
+          envContent += `\nSTRIPE_PUBLISHABLE_KEY=${stripePublishableKey.trim()}`;
+        }
+      }
+      if (stripeWebhookSecret !== undefined) {
+        if (/^STRIPE_WEBHOOK_SECRET=.*$/m.test(envContent)) {
+          envContent = envContent.replace(/^STRIPE_WEBHOOK_SECRET=.*$/m, `STRIPE_WEBHOOK_SECRET=${stripeWebhookSecret.trim()}`);
+        } else {
+          envContent += `\nSTRIPE_WEBHOOK_SECRET=${stripeWebhookSecret.trim()}`;
+        }
+      }
+      fs.writeFileSync(envPath, envContent, 'utf8');
+    }
+  } catch (err) {
+    console.warn('⚠️ Could not persist updated keys to .env file:', err.message);
+  }
+
+  res.json({
+    success: true,
+    message: 'Stripe Gateway credentials saved and active.',
+    data: {
+      isConfigured:
+        (process.env.STRIPE_SECRET_KEY || '').startsWith('sk_') &&
+        !(process.env.STRIPE_SECRET_KEY || '').includes('MockTicketStripeKey'),
+    },
+  });
+};
+

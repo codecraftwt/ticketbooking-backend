@@ -23,7 +23,7 @@ const showSeatSchema = new mongoose.Schema(
     tier: {
       type: String,
       required: true,
-      enum: ['VIP', 'Premium', 'Standard', 'Recliner', 'Balcony'],
+      trim: true,
     },
     price: {
       type: Number,

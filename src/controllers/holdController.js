@@ -92,7 +92,7 @@ export const createSeatHold = async (req, res) => {
 
     // 5. Generate secure reservation token and 5-minute expiration
     const reservationToken = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 300 seconds
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 300 seconds (5 minutes)
 
     const hold = new SeatHold({
       showId,
@@ -161,7 +161,7 @@ export const createSeatHold = async (req, res) => {
         })),
         totalAmount,
         expiresAt,
-        remainingSeconds: 300,
+        remainingSeconds: 60,
       },
     });
   } catch (error) {

@@ -54,6 +54,16 @@ const eventSchema = new mongoose.Schema(
       type: String,
       default: 'Free cancellation up to 4 hours before showtime. 100% refund processed to original payment method.',
     },
+    contactEmail: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    contactPhone: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     status: {
       type: String,
       enum: ['Draft', 'Published', 'Archived'],

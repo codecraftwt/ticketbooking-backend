@@ -4,12 +4,15 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
+  quickPublishEvent,
 } from '../controllers/eventController.js';
 import { protectAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.use(protectAdmin);
+
+router.post('/quick-publish', quickPublishEvent);
 
 router.route('/')
   .get(getAdminEvents)

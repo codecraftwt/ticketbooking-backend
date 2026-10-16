@@ -5,7 +5,7 @@ const tierPriceSchema = new mongoose.Schema(
     tier: {
       type: String,
       required: true,
-      enum: ['VIP', 'Premium', 'Standard', 'Recliner', 'Balcony'],
+      trim: true,
     },
     price: {
       type: Number,
@@ -72,6 +72,11 @@ const showSchema = new mongoose.Schema(
       enum: ['Scheduled', 'Open', 'SoldOut', 'Completed', 'Cancelled'],
       default: 'Scheduled',
       index: true,
+    },
+    seatingType: {
+      type: String,
+      enum: ['NumberedSeats', 'GeneralAdmission'],
+      default: 'NumberedSeats',
     },
   },
   {
