@@ -85,7 +85,7 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.error('Admin Login Error:', error);
-    res.status(500).json({ success: false, message: 'Server error during login.' });
+    res.status(500).json({ success: false, message: error.message || 'Server error during login.' });
   }
 };
 

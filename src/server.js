@@ -87,6 +87,20 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Database connection middleware for Serverless
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error('Database connection middleware error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
 // Mount Routes
 app.use('/api/admin/auth', authLimiter, adminAuthRouter);
 app.use('/api/admin/venues', adminVenuesRouter);
