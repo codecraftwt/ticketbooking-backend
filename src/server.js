@@ -105,21 +105,24 @@ app.use((err, req, res, next) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Ticket Booking API is running at http://localhost:${PORT}`);
-  console.log(`⚡ Socket.IO initialized for real-time seat synchronization`);
-  console.log(`📡 Health Check: http://localhost:${PORT}/api/health`);
-  console.log(`🔒 Admin Auth: http://localhost:${PORT}/api/admin/auth/login`);
-});
+if (process.env.VERCEL !== '1') {
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 Ticket Booking API is running at http://localhost:${PORT}`);
+    console.log(`⚡ Socket.IO initialized for real-time seat synchronization`);
+    console.log(`📡 Health Check: http://localhost:${PORT}/api/health`);
+    console.log(`🔒 Admin Auth: http://localhost:${PORT}/api/admin/auth/login`);
+  });
 
-httpServer.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use by another running terminal or process.`);
-    console.error(`👉 Close the previous process or run Stop-Process on port ${PORT}.`);
-    process.exit(1);
-  } else {
-    console.error('Server listen error:', err);
-  }
-});
+  httpServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${PORT} is already in use by another running terminal or process.`);
+      console.error(`👉 Close the previous process or run Stop-Process on port ${PORT}.`);
+      process.exit(1);
+    } else {
+      console.error('Server listen error:', err);
+    }
+  });
+}
 
+export default app;
 export { app, httpServer };
