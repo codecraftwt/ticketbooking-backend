@@ -223,11 +223,13 @@ export const confirmPaymentAndBooking = async (req, res) => {
       guest: guestInfo?.name || hold.guestInfo?.name,
       verified: true,
     });
-    const qrCodeDataUrl = await QRCode.toDataURL(qrPayload, {
-      margin: 1,
-      color: { dark: '#000000', light: '#ffffff' },
-      width: 250,
-    });
+    // QR code generation commented out as requested
+    // const qrCodeDataUrl = await QRCode.toDataURL(qrPayload, {
+    //   margin: 1,
+    //   color: { dark: '#000000', light: '#ffffff' },
+    //   width: 250,
+    // });
+    const qrCodeDataUrl = null;
 
     const facilityFee = hold.seatIds.length * 1.5;
     const finalTotal = hold.totalAmount + facilityFee;
