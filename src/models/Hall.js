@@ -15,7 +15,17 @@ const hallSchema = new mongoose.Schema(
     },
     screenType: {
       type: String,
-      enum: ['Standard', 'IMAX', 'Dolby Cinema', '4DX', 'Open Air', 'Theatre Stage'],
+      enum: [
+        'Standard',
+        'IMAX',
+        'IMAX Laser',
+        'Dolby Cinema',
+        'Dolby Cinema Atmos',
+        '4DX',
+        'Open Air',
+        'Theatre Stage',
+        'Other',
+      ],
       default: 'Standard',
     },
     capacity: {

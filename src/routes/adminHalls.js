@@ -19,6 +19,8 @@ router.route('/:id')
   .put(updateHall)
   .delete(deleteHall);
 
-router.post('/:id/layout', saveHallLayout);
+router.route('/:id/layout')
+  .post(saveHallLayout)
+  .put(saveHallLayout);
 
 export default router;
