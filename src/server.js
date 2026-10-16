@@ -24,8 +24,9 @@ import { cleanupExpiredHoldsForShow } from './controllers/holdController.js';
 
 dotenv.config();
 
-// Connect to MongoDB
-connectDB();
+if (process.env.VERCEL !== '1') {
+  connectDB();
+}
 
 const app = express();
 const httpServer = http.createServer(app);
